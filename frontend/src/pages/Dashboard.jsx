@@ -161,7 +161,7 @@ export default function Dashboard({ token, user, onLogout }) {
     <div className="dashboard">
       <header className="topbar">
         <div>
-          <p className="tiny">AI Assisted Trading Simulation</p>
+          <p className="tiny">AI Based Trading System</p>
           <h1>Welcome, {user.name}</h1>
         </div>
         <div className="topbar-actions">

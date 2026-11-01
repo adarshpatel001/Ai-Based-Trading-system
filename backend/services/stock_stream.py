@@ -1,12 +1,32 @@
 import queue
+import os
+import shutil
+import tempfile
 import threading
 import time
 
+import certifi
 import yfinance as yf
+from curl_cffi import requests as curl_requests
 
 CANDLE_LIMIT = 60
 streams = {}
 market_state = {}
+
+
+def _prepare_ca_bundle():
+    path = os.path.join(tempfile.gettempdir(), "trading-sim-cacert.pem")
+    if not os.path.exists(path):
+        shutil.copyfile(certifi.where(), path)
+    return path
+
+
+CA_BUNDLE = _prepare_ca_bundle()
+
+
+def _ticker(symbol):
+    session = curl_requests.Session(impersonate="chrome", verify=CA_BUNDLE)
+    return yf.Ticker(symbol, session=session)
 
 
 def _first_not_none(*values):
@@ -191,9 +211,13 @@ def normalize_tick(tick, fallback_symbol):
 
 
 def get_snapshot(symbol):
-    ticker = yf.Ticker(symbol)
-    info = getattr(ticker, "fast_info", {}) or {}
-    history = ticker.history(period="1d", interval="1m")
+    ticker = _ticker(symbol)
+    try:
+        info = getattr(ticker, "fast_info", {}) or {}
+        history = ticker.history(period="1d", interval="1m")
+    except Exception as error:
+        print(f"snapshot error for {symbol}: {error}")
+        return None
     state = market_state.setdefault(symbol, {})
     candles = []
 
@@ -281,7 +305,7 @@ def start_stream(symbol):
     if symbol in streams:
         return streams[symbol]["queue"]
     
-    ticker = yf.Ticker(symbol)
+    ticker = _ticker(symbol)
     q = queue.Queue()
     stop_event = threading.Event()
 
@@ -351,7 +375,12 @@ def enrich_volume_from_snapshot(payload, symbol):
     if _to_int(payload.get("volume"), 0) != 0:
         return payload
 
-    snapshot = get_snapshot(symbol)
+    try:
+        snapshot = get_snapshot(symbol)
+    except Exception as error:
+        print(f"volume enrichment error for {symbol}: {error}")
+        return payload
+
     if snapshot and snapshot.get("volume") is not None:
         payload["volume"] = snapshot["volume"]
     return payload
