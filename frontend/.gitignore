@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+ai-service/myenv/
+venv/
+.venv/
+__pycache__/
+.env
